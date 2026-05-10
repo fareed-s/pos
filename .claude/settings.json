@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check server.js)",
+      "Bash(node --check controllers/salesController.js)",
+      "Bash(node --check controllers/purchaseController.js)",
+      "Bash(node --check controllers/customerController.js)",
+      "Bash(node --check controllers/cashRegisterController.js)",
+      "Bash(npm run *)",
+      "Bash(node --check controllers/superadminController.js)",
+      "Bash(node --check routes/superadminRoutes.js)",
+      "Bash(node --check controllers/authController.js)",
+      "Bash(node --check routes/authRoutes.js)",
+      "Bash(node --check middleware/auth.js)",
+      "Bash(node -e \"import\\('./utils/helpers.js'\\).then\\(m => { for\\(let i=0;i<5;i++\\) console.log\\(m.generatePassword\\(12\\)\\); }\\);\")",
+      "Bash(node -e \"import\\('./server.js'\\).then\\(\\(\\)=>{console.log\\('LOAD_OK'\\);process.exit\\(0\\)}\\).catch\\(e=>{console.error\\('LOAD_FAIL:',e.message\\);process.exit\\(1\\)}\\);\")",
+      "Bash(kill %1)",
+      "Bash(wait)",
+      "Bash(node --check seeds/seed.js)",
+      "Bash(timeout 30 node seeds/seed.js)",
+      "Bash(timeout 30 node -e ' *)",
+      "Bash(node -e ' *)",
+      "Bash(npx vite *)",
+      "Bash(node seeds/seed-products.js --email=gfareed.dev@gmail.com)",
+      "Bash(npx --no-install vite build)",
+      "Bash(npm install *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('papaparse:', p.dependencies.papaparse, 'html5-qrcode:', p.dependencies['html5-qrcode']\\);\")",
+      "Bash(node --check controllers/uploadController.js)",
+      "Bash(node --check controllers/productController.js)",
+      "Bash(node --check models/Sale.js)"
+    ]
+  }
+}

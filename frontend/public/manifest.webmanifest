@@ -1,0 +1,48 @@
+{
+  "name": "POS Management System",
+  "short_name": "POS",
+  "description": "Multi-tenant POS Management Suite with offline support",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0F172A",
+  "theme_color": "#1D4ED8",
+  "lang": "en",
+  "categories": ["business", "productivity", "finance"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "POS Terminal",
+      "short_name": "POS",
+      "description": "Open the sale terminal",
+      "url": "/pos",
+      "icons": [{ "src": "/icons/icon.svg", "type": "image/svg+xml", "sizes": "any" }]
+    },
+    {
+      "name": "Sales History",
+      "short_name": "Sales",
+      "url": "/sales",
+      "icons": [{ "src": "/icons/icon.svg", "type": "image/svg+xml", "sizes": "any" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icons/icon.svg", "type": "image/svg+xml", "sizes": "any" }]
+    }
+  ]
+}

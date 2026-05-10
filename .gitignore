@@ -1,0 +1,35 @@
+node_modules/
+dist/
+build/
+
+# Env files — NEVER commit. Contains JWT secrets, DB URIs, Cloudinary keys, super admin password.
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Test / coverage
+coverage/
+
+# Runtime user data — khata proof images / voice notes uploaded by tenants.
+backend/uploads/
+
+# Misc
+.cache/
