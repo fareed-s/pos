@@ -8,6 +8,7 @@ import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import connectDB from './config/db.js';
+import { ensureSuperAdmin } from './utils/ensureSuperAdmin.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 
 // Route imports
@@ -38,8 +39,8 @@ const PORT = process.env.PORT || 5000;
 // Trust the first proxy hop so rate-limit / cookie / IP detection work behind nginx
 app.set('trust proxy', 1);
 
-// Connect DB
-connectDB();
+// Connect DB, then bootstrap the super admin (no-op if one already exists).
+connectDB().then(() => ensureSuperAdmin());
 
 // Security middleware
 app.use(helmet());
