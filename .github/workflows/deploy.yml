@@ -112,6 +112,13 @@ jobs:
             # If GHCR repo is private, the VPS needs to be logged in once.
             # That's a one-time manual step on the box (see README).
 
+            # Pull the latest source BEFORE invoking deploy.sh. Otherwise the
+            # in-progress script would have already been read into bash's
+            # buffer with its old contents, and any improvements we just
+            # shipped to deploy.sh would only take effect on the *next* run.
+            git fetch origin main
+            git reset --hard origin/main
+
             # Pin the env to the image tags this CI run produced.
             cat > .env.ci <<EOF
             BACKEND_IMAGE=${{ needs.build.outputs.backend_tag }}
@@ -124,5 +131,6 @@ jobs:
             mv .env.merged .env
             rm -f .env.ci
 
-            # Run the same script humans run when redeploying by hand.
+            # Tell deploy.sh to skip its own git pull — we already did it.
+            export SKIP_GIT_PULL=1
             bash scripts/deploy.sh

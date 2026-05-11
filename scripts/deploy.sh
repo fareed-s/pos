@@ -21,8 +21,17 @@ if [ ! -f .env ]; then
 fi
 
 echo "==> [1/4] Pulling latest main"
-git fetch origin main
-git reset --hard origin/main
+# When CI invokes us it has already done `git pull` (so this very script
+# is the fresh one). Skipping the second pull avoids the bash-script-edits-
+# itself-mid-run race where new deploy.sh code wouldn't take effect until
+# the next run. Manual SSH deploys leave SKIP_GIT_PULL unset and behave
+# the same as before.
+if [ -z "${SKIP_GIT_PULL:-}" ]; then
+  git fetch origin main
+  git reset --hard origin/main
+else
+  echo "    (SKIP_GIT_PULL=1 — caller already pulled latest main)"
+fi
 
 echo "==> [2/4] Pulling / building images"
 # Two modes:
