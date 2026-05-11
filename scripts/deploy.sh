@@ -25,10 +25,25 @@ git fetch origin main
 git reset --hard origin/main
 
 echo "==> [2/4] Pulling / building images"
-# `pull` covers prebuilt images (e.g. mongo) and any image: tags you reference.
-# `build` covers the local backend / frontend services.
-$COMPOSE pull --ignore-pull-failures || true
-DOCKER_BUILDKIT=1 $COMPOSE build --pull
+# Two modes:
+#   - CI deploy: BACKEND_IMAGE / FRONTEND_IMAGE in .env point at a remote
+#     registry (e.g. ghcr.io/owner/pos-backend:sha). Just pull — no local
+#     rebuild, since the image is already authoritative.
+#   - Local deploy: env vars default to `pos-{backend,frontend}:local`.
+#     Need to actually build from the freshly-pulled source.
+#
+# Heuristic: if BOTH override vars contain a slash, this is a registry
+# deploy. Anything else falls through to a full local build.
+BE_IMG=$(grep -E '^BACKEND_IMAGE=' .env 2>/dev/null | cut -d= -f2- || echo "")
+FE_IMG=$(grep -E '^FRONTEND_IMAGE=' .env 2>/dev/null | cut -d= -f2- || echo "")
+if [[ "$BE_IMG" == *"/"* && "$FE_IMG" == *"/"* ]]; then
+  echo "    (registry deploy — pulling $BE_IMG and $FE_IMG)"
+  $COMPOSE pull
+else
+  echo "    (local deploy — building from source)"
+  $COMPOSE pull --ignore-pull-failures || true
+  DOCKER_BUILDKIT=1 $COMPOSE build --pull
+fi
 
 echo "==> [3/4] Starting stack (zero-downtime where possible)"
 # `up -d` recreates only services whose config/image actually changed.
