@@ -1,51 +1,85 @@
-version: '3.8'
+# Production stack — frontend (nginx) on :80, backend (node) internal-only,
+# mongodb internal-only with persisted volume. All secrets come from .env on
+# the host. No fallback values for sensitive vars so a missing .env fails loud
+# instead of booting with predictable JWT secrets.
 
 services:
-  backend:
-    build: ./backend
-    container_name: pos-backend
-    restart: unless-stopped
-    ports:
-      - "5000:5000"
-    environment:
-      - PORT=5000
-      - NODE_ENV=production
-      - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017/pos_system}
-      - JWT_SECRET=${JWT_SECRET:-pos_system_jwt_secret_key_2024}
-      - JWT_EXPIRES_IN=7d
-      - COOKIE_MAX_AGE_DAYS=7
-      - CLIENT_URL=http://localhost
-      - SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL:-superadmin@possystem.com}
-      - SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD:-SuperAdmin@123}
-    depends_on:
-      - mongo
-    networks:
-      - pos-network
-
-  frontend:
-    build: ./frontend
-    container_name: pos-frontend
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    networks:
-      - pos-network
-
   mongo:
     image: mongo:7
     container_name: pos-mongo
     restart: unless-stopped
-    ports:
-      - "27017:27017"
+    # NOT exposed to the host — only the backend container on `pos-network`
+    # can talk to it. Eliminates a huge class of public-MongoDB incidents.
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-posroot}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?MONGO_ROOT_PASSWORD missing — set it in .env}
     volumes:
       - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - pos-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ${BACKEND_IMAGE:-pos-backend:local}
+    container_name: pos-backend
+    restart: unless-stopped
+    # Backend is also internal-only — clients reach it via the nginx /api proxy.
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      # Auth between containers uses the compose-network creds.
+      MONGO_URI: ${MONGO_URI:-mongodb://${MONGO_ROOT_USER:-posroot}:${MONGO_ROOT_PASSWORD}@mongo:27017/pos_system?authSource=admin}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET missing — set it in .env (use a long random string)}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      COOKIE_MAX_AGE_DAYS: ${COOKIE_MAX_AGE_DAYS:-7}
+      CLIENT_URL: ${CLIENT_URL:?CLIENT_URL missing — set it in .env (e.g. https://pos.example.com)}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:?SUPER_ADMIN_EMAIL missing — set it in .env}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:?SUPER_ADMIN_PASSWORD missing — set it in .env}
+      # Optional Cloudinary — leave empty to use local /uploads (volume below).
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+    volumes:
+      # Persist khata proof uploads across container rebuilds / image upgrades.
+      - backend-uploads:/app/uploads
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - pos-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Same-origin in prod since nginx in this same container proxies /api.
+        # Override via .env if frontend lives on a different domain.
+        VITE_API_URL: ${VITE_API_URL:-}
+    image: ${FRONTEND_IMAGE:-pos-frontend:local}
+    container_name: pos-frontend
+    restart: unless-stopped
+    ports:
+      # Map host :80 → container :80. Put a real reverse proxy / Caddy in
+      # front of this if you want HTTPS (recommended for prod).
+      - "${HOST_HTTP_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_started
     networks:
       - pos-network
 
 volumes:
   mongo-data:
+  backend-uploads:
 
 networks:
   pos-network:

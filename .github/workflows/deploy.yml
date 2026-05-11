@@ -1,27 +1,128 @@
-name: Deploy POS System
+name: Build & Deploy POS
+
+# CI/CD pipeline:
+#   1. Build backend + frontend images on GitHub-hosted runners (free, fast)
+#   2. Push them to GHCR (GitHub Container Registry) tagged with both `latest`
+#      and the commit SHA
+#   3. SSH into the VPS and run scripts/deploy.sh — which pulls the new
+#      images, runs `docker compose up -d`, and health-checks
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   VPS_HOST                — IP or hostname (e.g. 31.97.119.223)
+#   VPS_USER                — usually `root`
+#   VPS_SSH_PRIVATE_KEY     — the PRIVATE half of an SSH key whose PUBLIC half
+#                             is in /root/.ssh/authorized_keys on the VPS
+#   VPS_SSH_PORT            — optional, defaults to 22
+#
+# The GITHUB_TOKEN with `packages: write` permission is enough to push images
+# to GHCR — no extra secret needed for the registry login.
 
 on:
   push:
     branches: [main]
+  workflow_dispatch: {}  # lets you re-run from the Actions tab without a new commit
+
+concurrency:
+  # Cancel an in-flight deploy when a newer commit lands so we don't fight ourselves.
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/pos-backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/pos-frontend
 
 jobs:
+  build:
+    name: Build & push images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # for pushing to GHCR
+    outputs:
+      backend_tag: ${{ steps.meta.outputs.backend_tag }}
+      frontend_tag: ${{ steps.meta.outputs.frontend_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tags (lowercase + short SHA)
+        id: meta
+        run: |
+          # GHCR refuses uppercase chars in image names; lowercase the owner.
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          SHA_SHORT=${GITHUB_SHA::7}
+          echo "backend_tag=ghcr.io/${OWNER_LC}/pos-backend:${SHA_SHORT}" >> $GITHUB_OUTPUT
+          echo "frontend_tag=ghcr.io/${OWNER_LC}/pos-frontend:${SHA_SHORT}" >> $GITHUB_OUTPUT
+          echo "backend_latest=ghcr.io/${OWNER_LC}/pos-backend:latest" >> $GITHUB_OUTPUT
+          echo "frontend_latest=ghcr.io/${OWNER_LC}/pos-frontend:latest" >> $GITHUB_OUTPUT
+          echo "owner_lc=${OWNER_LC}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.backend_tag }}
+            ${{ steps.meta.outputs.backend_latest }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+
+      - name: Build & push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.frontend_tag }}
+            ${{ steps.meta.outputs.frontend_latest }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+
   deploy:
+    name: Deploy to VPS
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to VPS
+      - name: SSH → pull & restart
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          script_stop: true
           script: |
+            set -euo pipefail
             cd /opt/pos-system
-            git pull origin main
-            docker-compose down
-            docker-compose up --build -d
-            echo "Deployment completed at $(date)"
-            
-            # Health check
-            sleep 10
-            curl -f http://localhost:5000/api/health || echo "Backend health check failed"
-            echo "Health check done"
+
+            # If GHCR repo is private, the VPS needs to be logged in once.
+            # That's a one-time manual step on the box (see README).
+
+            # Pin the env to the image tags this CI run produced.
+            cat > .env.ci <<EOF
+            BACKEND_IMAGE=${{ needs.build.outputs.backend_tag }}
+            FRONTEND_IMAGE=${{ needs.build.outputs.frontend_tag }}
+            EOF
+
+            # Merge with the persistent host .env (secrets live there).
+            grep -v -E '^(BACKEND_IMAGE|FRONTEND_IMAGE)=' .env > .env.merged || true
+            cat .env.ci >> .env.merged
+            mv .env.merged .env
+            rm -f .env.ci
+
+            # Run the same script humans run when redeploying by hand.
+            bash scripts/deploy.sh
