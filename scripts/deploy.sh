@@ -65,12 +65,18 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-# Quick smoke test against the public URL.
-echo "==> Smoke test: GET /api/health"
-if curl -fsS http://localhost/api/health | grep -q '"success":true'; then
+# Smoke test — talk to the backend directly through the docker exec so this
+# works regardless of:
+#   - which host port the frontend is mapped to (HOST_HTTP_PORT can be
+#     anything when sharing the box with other apps behind a reverse proxy)
+#   - whether a real domain / cert is configured yet
+# This proves the stack is wired end-to-end (mongo → backend → JSON response)
+# without depending on the public ingress.
+echo "==> Smoke test: GET /api/health (via backend container)"
+if $COMPOSE exec -T backend wget --quiet -O - http://localhost:5000/api/health | grep -q '"success":true'; then
   echo "    ✅ /api/health OK"
 else
-  echo "    ⚠️  /api/health did not return success — check logs"
+  echo "    ⚠️  /api/health did not return success — recent logs:"
   $COMPOSE logs --tail=40 backend
   exit 1
 fi
