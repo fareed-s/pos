@@ -123,13 +123,24 @@ export const requirePermission = (module, action) => {
   };
 };
 
-// Cookie options shared between login and logout so the browser drops/sets the same cookie
-export const cookieOptions = () => ({
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-  path: '/',
-});
+// Cookie options shared between login and logout so the browser drops/sets the same cookie.
+//
+//   secure   — only when the SPA is actually served over HTTPS. If we set it
+//              under plain http:// the browser silently drops the Set-Cookie,
+//              and the user appears to "login successfully but stay logged out".
+//              Derived from CLIENT_URL so http://vps:port deploys work without
+//              extra config, and https://pos.example.com flips automatically.
+//   sameSite — 'lax' is the right default for a SPA on the same origin as its
+//              API. 'strict' breaks top-level navigation cookies in some browsers.
+export const cookieOptions = () => {
+  const isHttps = (process.env.CLIENT_URL || '').startsWith('https://');
+  return {
+    httpOnly: true,
+    secure: isHttps,
+    sameSite: 'lax',
+    path: '/',
+  };
+};
 
 // Generate JWT token and set cookie
 export const generateToken = (res, userId, role, businessId) => {
