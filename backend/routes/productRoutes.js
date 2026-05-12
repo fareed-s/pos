@@ -2,7 +2,7 @@ import express from 'express';
 import { protect, protectWithBusiness, authorize } from '../middleware/auth.js';
 import {
   getProducts, getProduct, createProduct, updateProduct, deleteProduct,
-  searchProducts, getByBarcode, getLowStock, getFeatured,
+  searchProducts, getByBarcode, getLowStock, getFeatured, getExpiryTracker,
   adjustStock, getStockAdjustments, bulkCreateProducts,
 } from '../controllers/productController.js';
 import { validate, productSchema, stockAdjustmentSchema } from '../validators/index.js';
@@ -13,6 +13,7 @@ router.use(protect, protectWithBusiness);
 
 router.get('/search', searchProducts);
 router.get('/low-stock', getLowStock);
+router.get('/expiry-tracker', getExpiryTracker);
 router.get('/featured', getFeatured);
 router.get('/barcode/:code', getByBarcode);
 

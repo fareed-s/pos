@@ -63,6 +63,7 @@ export const productAPI = {
   search: (q) => api.get('/products/search', { params: { q } }),
   getByBarcode: (code) => api.get(`/products/barcode/${code}`),
   getLowStock: () => api.get('/products/low-stock'),
+  getExpiryTracker: () => api.get('/products/expiry-tracker'),
   getFeatured: () => api.get('/products/featured'),
   adjustStock: (data) => api.post('/products/stock/adjust', data),
   getStockAdjustments: (params) => api.get('/products/stock/adjustments', { params }),

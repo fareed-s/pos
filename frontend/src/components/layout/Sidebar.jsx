@@ -9,13 +9,21 @@ import {
   HiOutlineX, HiOutlineClipboardList, HiOutlineAdjustments, HiOutlineOfficeBuilding,
   HiOutlineBell, HiOutlineChevronDown, HiOutlineGlobe, HiOutlineSearch, HiOutlineTrash,
   HiOutlineLightBulb, HiOutlineExclamation, HiOutlineEye, HiOutlineEyeOff, HiOutlineSun, HiOutlineMoon,
-  HiOutlineUser,
+  HiOutlineUser, HiOutlineClock,
 } from 'react-icons/hi';
 import { useTheme } from '../../context/ThemeContext';
 import { usePrivacy } from '../../context/PrivacyContext';
 import { getRoleLabel } from '../../utils/format';
 import { Avatar } from '../common';
 import InstallButton from './InstallButton';
+import useGlobalShortcuts from '../../utils/useGlobalShortcuts';
+
+const KeyboardIcon = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="2" y="6" width="20" height="12" rx="2" />
+    <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10" />
+  </svg>
+);
 
 export default function Sidebar({ children }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -30,6 +38,10 @@ export default function Sidebar({ children }) {
   const { enabled: privacyOn, toggle: togglePrivacy } = usePrivacy();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // App-wide keyboard shortcuts (Alt+letter nav, theme toggle, help page).
+  // Mounted here because Sidebar wraps every protected route.
+  useGlobalShortcuts();
 
   const handleLogout = async () => {
     setProfileOpen(false);
@@ -82,6 +94,7 @@ export default function Sidebar({ children }) {
     { to: '/production', icon: HiOutlineCube, label: '🏭 Production Log' },
     { to: '/wastage', icon: HiOutlineTrash, label: '🗑️ Wastage Tracker' },
     { to: '/inventory', icon: HiOutlineClipboardList, label: 'Inventory' },
+    { to: '/expiry', icon: HiOutlineClock, label: '⏰ Expiry Tracker' },
     { to: '/udhar', icon: HiOutlineCash, label: '📒 Udhar Register' },
     { to: '/customers', icon: HiOutlineUsers, label: 'Customers' },
     { to: '/suppliers', icon: HiOutlineTruck, label: 'Suppliers' },
@@ -92,6 +105,7 @@ export default function Sidebar({ children }) {
     { to: '/cash-handover', icon: HiOutlineCash, label: '💰 Cash Jama' },
     { to: '/reports', icon: HiOutlineChartBar, label: 'Reports' },
     { to: '/activity-logs', icon: HiOutlineClipboardList, label: 'Activity Log' },
+    { to: '/shortcuts', icon: KeyboardIcon, label: '⌨️ Shortcuts' },
     { to: '/settings', icon: HiOutlineCog, label: 'Settings' },
   ];
 
@@ -112,6 +126,7 @@ export default function Sidebar({ children }) {
     { to: '/udhar', icon: HiOutlineCash, label: '📒 Udhar Register' },
     { to: '/wastage', icon: HiOutlineTrash, label: '🗑️ Wastage' },
     { to: '/cash-handover', icon: HiOutlineCash, label: '💰 Cash Jama' },
+    { to: '/shortcuts', icon: KeyboardIcon, label: '⌨️ Shortcuts' },
   ];
 
   const getLinks = () => {

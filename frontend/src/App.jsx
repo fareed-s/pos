@@ -32,6 +32,8 @@ import CashHandoverPage from './pages/CashHandover';
 import BulkPriceUpdate from './pages/BulkPriceUpdate';
 import SmartHub from './pages/SmartHub';
 import Profile from './pages/Profile';
+import ExpiryTracker from './pages/ExpiryTracker';
+import KeyboardShortcuts from './pages/KeyboardShortcuts';
 
 // Protected Route wrapper
 function ProtectedRoute({ children, roles }) {
@@ -123,6 +125,11 @@ function AppRoutes() {
       <Route path="/cash-handover" element={<ProtectedRoute roles={['businessadmin', 'manager', 'cashier']}><CashHandoverPage /></ProtectedRoute>} />
       <Route path="/bulk-price-update" element={<ProtectedRoute roles={['businessadmin', 'manager']}><BulkPriceUpdate /></ProtectedRoute>} />
       <Route path="/smart-hub" element={<ProtectedRoute roles={['businessadmin', 'manager', 'cashier']}><SmartHub /></ProtectedRoute>} />
+      <Route path="/expiry" element={<ProtectedRoute roles={['businessadmin', 'manager']}><ExpiryTracker /></ProtectedRoute>} />
+
+      {/* Keyboard shortcuts — open to every authenticated role so cashiers
+          can discover F2/F4/F9 etc. SuperAdmin doesn't need it but harmless. */}
+      <Route path="/shortcuts" element={<ProtectedRoute roles={['superadmin', 'businessadmin', 'manager', 'cashier']}><KeyboardShortcuts /></ProtectedRoute>} />
 
       {/* Profile is available to every authenticated role (incl. superadmin) */}
       <Route path="/profile" element={<ProtectedRoute roles={['superadmin', 'businessadmin', 'manager', 'cashier']}><Profile /></ProtectedRoute>} />

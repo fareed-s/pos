@@ -216,6 +216,81 @@ export const getLowStock = async (req, res, next) => {
   }
 };
 
+// @desc Get expiry tracker — products grouped into shelf-life buckets so the
+//       UI can render a "what's about to die on my shelf" dashboard.
+//
+//       Bucket boundaries (in days remaining):
+//         expired   : < 0
+//         d0_30     : 0 .. 30
+//         d31_60    : 31 .. 60
+//         d61_90    : 61 .. 90
+//         d91_180   : 91 .. 180
+//
+//       Products with no expiryDate at all are skipped entirely (they're not
+//       perishable so they don't belong on this dashboard). Products with zero
+//       stock are also skipped — nothing left to lose.
+// @route GET /api/products/expiry-tracker
+export const getExpiryTracker = async (req, res, next) => {
+  try {
+    const businessId = req.user.businessId;
+    const horizonDays = 180;
+    const horizon = new Date(Date.now() + horizonDays * 24 * 60 * 60 * 1000);
+
+    const products = await Product.find({
+      businessId,
+      isActive: true,
+      currentStock: { $gt: 0 },
+      expiryDate: { $exists: true, $ne: null, $lte: horizon },
+    })
+      .select('productName sku batchNumber currentStock costPrice salePrice unit expiryDate')
+      .sort({ expiryDate: 1 });
+
+    const now = Date.now();
+    const buckets = {
+      expired:  { label: 'Expired',    rangeLabel: 'Past expiry',    items: [], value: 0 },
+      d0_30:    { label: '0–30 Days',  rangeLabel: 'Next 30 days',   items: [], value: 0 },
+      d31_60:   { label: '31–60 Days', rangeLabel: '31 – 60 days',   items: [], value: 0 },
+      d61_90:   { label: '61–90 Days', rangeLabel: '61 – 90 days',   items: [], value: 0 },
+      d91_180:  { label: '91–180 Days', rangeLabel: '91 – 180 days', items: [], value: 0 },
+    };
+
+    products.forEach(p => {
+      const days = Math.floor((new Date(p.expiryDate).getTime() - now) / (24 * 60 * 60 * 1000));
+      const stockValue = (p.currentStock || 0) * (p.costPrice || 0);
+      const entry = {
+        _id: p._id,
+        productName: p.productName,
+        sku: p.sku,
+        batchNumber: p.batchNumber || '',
+        currentStock: p.currentStock,
+        unit: p.unit,
+        costPrice: p.costPrice,
+        salePrice: p.salePrice,
+        expiryDate: p.expiryDate,
+        daysLeft: days,
+        stockValue,
+      };
+
+      let key;
+      if (days < 0) key = 'expired';
+      else if (days <= 30) key = 'd0_30';
+      else if (days <= 60) key = 'd31_60';
+      else if (days <= 90) key = 'd61_90';
+      else key = 'd91_180';
+
+      buckets[key].items.push(entry);
+      buckets[key].value += stockValue;
+    });
+
+    const totalAtRisk = Object.values(buckets).reduce((s, b) => s + b.items.length, 0);
+    const totalValue  = Object.values(buckets).reduce((s, b) => s + b.value, 0);
+
+    res.json({ success: true, data: { buckets, totalAtRisk, totalValue } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc Get featured products (for POS quick buttons)
 // @route GET /api/products/featured
 export const getFeatured = async (req, res, next) => {
