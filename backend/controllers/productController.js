@@ -313,7 +313,7 @@ export const getFeatured = async (req, res, next) => {
 // @route POST /api/stock/adjust
 export const adjustStock = async (req, res, next) => {
   try {
-    const { productId, type, quantity, reason, notes } = req.body;
+    const { productId, type, quantity, reason, notes, batchNumber, expiryDate, unitCostAtReceipt } = req.body;
     const businessId = req.user.businessId;
 
     const product = await Product.findOne({ _id: productId, businessId });
@@ -332,6 +332,24 @@ export const adjustStock = async (req, res, next) => {
     }
 
     product.currentStock = newStock;
+
+    // Receiving new stock — propagate the latest batch/expiry to the product
+    // so the Products page and Expiry Tracker reflect what's actually on the
+    // shelf right now. (We're not running a true multi-batch ledger yet; the
+    // StockAdjustment row keeps the historical batch trail per receipt.)
+    if (type === 'add') {
+      if (batchNumber) product.batchNumber = batchNumber;
+      if (expiryDate) {
+        const d = new Date(expiryDate);
+        if (!Number.isNaN(d.getTime())) product.expiryDate = d;
+      }
+      // Only overwrite costPrice when caller actually paid something different
+      // — keeps "I just topped up from existing stock" cases clean.
+      if (typeof unitCostAtReceipt === 'number' && unitCostAtReceipt > 0) {
+        product.costPrice = unitCostAtReceipt;
+      }
+    }
+
     await product.save();
 
     const adjustment = await StockAdjustment.create({
@@ -343,12 +361,16 @@ export const adjustStock = async (req, res, next) => {
       newStock,
       reason,
       notes: notes || '',
+      batchNumber: batchNumber || '',
+      expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+      unitCostAtReceipt: typeof unitCostAtReceipt === 'number' ? unitCostAtReceipt : undefined,
       adjustedBy: req.user._id,
       adjustedByName: req.user.name,
       businessId,
     });
 
-    logActivity(req.user._id, req.user.name, 'stock_adjustment', 'inventory', businessId, productId, `${type} ${quantity} units of ${product.productName}. Reason: ${reason}`);
+    const batchTrail = batchNumber ? ` [batch ${batchNumber}]` : '';
+    logActivity(req.user._id, req.user.name, 'stock_adjustment', 'inventory', businessId, productId, `${type} ${quantity} units of ${product.productName}${batchTrail}. Reason: ${reason}`);
 
     res.json({ success: true, data: { product, adjustment } });
   } catch (error) {

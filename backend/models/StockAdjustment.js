@@ -13,6 +13,13 @@ const stockAdjustmentSchema = new mongoose.Schema({
     required: true,
   },
   notes: { type: String, default: '' },
+  // Optional batch traceability. When stock arrives via a quick-add from the
+  // Products page, we capture the supplier's batch + expiry + the cost paid
+  // for THIS receipt — so later we can trace "which batch had the issue"
+  // and the Expiry Tracker page can surface what's about to die on the shelf.
+  batchNumber: { type: String, default: '' },
+  expiryDate: { type: Date },
+  unitCostAtReceipt: { type: Number },
   adjustedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   adjustedByName: { type: String, default: '' },
   businessId: { type: mongoose.Schema.Types.ObjectId, ref: 'Business', required: true },

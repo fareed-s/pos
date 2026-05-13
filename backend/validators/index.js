@@ -103,8 +103,13 @@ export const stockAdjustmentSchema = z.object({
   productId: z.string().min(1, 'Product ID is required'),
   type: z.enum(['add', 'subtract']),
   quantity: z.number().min(1, 'Quantity must be at least 1'),
-  reason: z.enum(['damaged', 'lost', 'count_correction', 'donation', 'returned', 'other']),
+  reason: z.enum(['damaged', 'lost', 'count_correction', 'donation', 'returned', 'purchase', 'transfer', 'other']),
   notes: z.string().optional(),
+  // Batch traceability — only meaningful on `add` but accepted in all cases
+  // so the client doesn't have to branch.
+  batchNumber: z.string().optional(),
+  expiryDate: z.string().optional(),
+  unitCostAtReceipt: z.number().nonnegative().optional(),
 });
 
 export const validate = (schema) => (req, res, next) => {

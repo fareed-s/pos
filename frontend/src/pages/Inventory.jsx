@@ -140,7 +140,7 @@ export default function Inventory() {
           <>
             <div className="table-container bg-white">
               <table className="data-table">
-                <thead><tr><th>Date</th><th>Product</th><th>Type</th><th className="text-right">Qty</th><th className="text-right">Before</th><th className="text-right">After</th><th>Reason</th><th>By</th></tr></thead>
+                <thead><tr><th>Date</th><th>Product</th><th>Type</th><th className="text-right">Qty</th><th className="text-right">Before</th><th className="text-right">After</th><th>Batch</th><th>Reason</th><th>By</th></tr></thead>
                 <tbody>
                   {adjustments.map(a => (
                     <tr key={a._id}>
@@ -150,6 +150,16 @@ export default function Inventory() {
                       <td className="text-right font-mono font-semibold">{a.quantity}</td>
                       <td className="text-right font-mono text-slate-500">{a.previousStock}</td>
                       <td className="text-right font-mono font-medium">{a.newStock}</td>
+                      <td className="text-sm">
+                        {a.batchNumber ? (
+                          <span className="font-mono text-xs text-slate-600">
+                            {a.batchNumber}
+                            {a.expiryDate && <span className="block text-[10px] text-slate-400">exp {String(a.expiryDate).slice(0, 10)}</span>}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
                       <td className="text-sm text-slate-600 capitalize">{a.reason.replace('_', ' ')}</td>
                       <td className="text-sm text-slate-500">{a.adjustedByName}</td>
                     </tr>

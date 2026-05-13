@@ -10,7 +10,7 @@ import Swal from 'sweetalert2';
 import {
   HiOutlinePlus, HiOutlinePencil, HiOutlineTrash, HiOutlineCube,
   HiOutlineFilter, HiOutlineExclamationCircle, HiOutlineEye,
-  HiOutlineCamera, HiOutlineUpload,
+  HiOutlineCamera, HiOutlineUpload, HiOutlinePlusCircle,
 } from 'react-icons/hi';
 
 export default function Products() {
@@ -18,6 +18,9 @@ export default function Products() {
   const canAdd = can('products', 'add');
   const canEdit = can('products', 'edit');
   const canDelete = can('products', 'delete');
+  // Stock-in piggybacks on inventory edit perms — same gate as the Adjust modal
+  // on the Inventory page. Falls back to product-edit if inventory perm isn't set.
+  const canStockIn = can('inventory', 'edit') || canEdit;
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +37,13 @@ export default function Products() {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
   const [saving, setSaving] = useState(false);
+  // Quick Stock-In — opens a small modal from the row's + icon. Captures qty,
+  // batch number, expiry, and unit cost so the batch trail is auditable later.
+  const [stockInProduct, setStockInProduct] = useState(null);
+  const [stockInForm, setStockInForm] = useState({
+    quantity: 1, batchNumber: '', expiryDate: '', unitCostAtReceipt: '', notes: '',
+  });
+  const [stockInSaving, setStockInSaving] = useState(false);
 
   const emptyForm = {
     productName: '', sku: '', barcode: '', category: '', description: '',
@@ -119,6 +129,50 @@ export default function Products() {
       toast.error(err.response?.data?.message || 'Failed to save product');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openStockIn = (product) => {
+    setStockInProduct(product);
+    setStockInForm({
+      quantity: 1,
+      batchNumber: '',
+      expiryDate: product.expiryDate ? product.expiryDate.slice(0, 10) : '',
+      unitCostAtReceipt: product.costPrice || '',
+      notes: '',
+    });
+  };
+
+  const handleStockIn = async (e) => {
+    e.preventDefault();
+    if (!stockInProduct) return;
+    const qty = Number(stockInForm.quantity);
+    if (!qty || qty <= 0) {
+      toast.error('Quantity must be greater than 0');
+      return;
+    }
+    setStockInSaving(true);
+    try {
+      const payload = {
+        productId: stockInProduct._id,
+        type: 'add',
+        quantity: qty,
+        reason: 'purchase',
+        notes: stockInForm.notes,
+        batchNumber: stockInForm.batchNumber || undefined,
+        expiryDate: stockInForm.expiryDate || undefined,
+      };
+      const cost = Number(stockInForm.unitCostAtReceipt);
+      if (Number.isFinite(cost) && cost > 0) payload.unitCostAtReceipt = cost;
+
+      await productAPI.adjustStock(payload);
+      toast.success(`+${qty} ${stockInProduct.unit || ''} added to ${stockInProduct.productName}`);
+      setStockInProduct(null);
+      fetchProducts();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add stock');
+    } finally {
+      setStockInSaving(false);
     }
   };
 
@@ -247,6 +301,15 @@ export default function Products() {
                   </td>
                   <td>
                     <div className="flex items-center justify-end gap-1">
+                      {canStockIn && (
+                        <button
+                          onClick={() => openStockIn(p)}
+                          className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 transition-colors"
+                          title="Add stock (batch + expiry)"
+                        >
+                          <HiOutlinePlusCircle className="w-5 h-5" />
+                        </button>
+                      )}
                       {canEdit && (
                         <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-brand-500 transition-colors" title="Edit">
                           <HiOutlinePencil className="w-4 h-4" />
@@ -257,7 +320,7 @@ export default function Products() {
                           <HiOutlineTrash className="w-4 h-4" />
                         </button>
                       )}
-                      {!canEdit && !canDelete && (
+                      {!canEdit && !canDelete && !canStockIn && (
                         <span className="text-[10px] text-slate-300">View only</span>
                       )}
                     </div>
@@ -414,6 +477,106 @@ export default function Products() {
         onClose={() => setShowBulkUpload(false)}
         onSuccess={() => { setShowBulkUpload(false); fetchProducts(); }}
       />
+
+      {/* Quick Stock-In — one-row "stock received" capture. Reason is hard-coded
+          to `purchase` because that's what 99% of these will be; if a manager
+          needs to log damage / correction etc. they use the Inventory page. */}
+      <Modal
+        isOpen={!!stockInProduct}
+        onClose={() => setStockInProduct(null)}
+        title={stockInProduct ? `Add Stock — ${stockInProduct.productName}` : ''}
+        size="md"
+      >
+        {stockInProduct && (
+          <form onSubmit={handleStockIn} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+              <div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">Current Stock</p>
+                <p className="text-xl font-heading font-bold text-slate-800 dark:text-slate-100">
+                  {formatNumber(stockInProduct.currentStock)} <span className="text-xs font-normal text-slate-500">{stockInProduct.unit}</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">After Adding</p>
+                <p className="text-xl font-heading font-bold text-emerald-600 dark:text-emerald-400">
+                  {formatNumber(stockInProduct.currentStock + Number(stockInForm.quantity || 0))} <span className="text-xs font-normal text-slate-500">{stockInProduct.unit}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="input-label">Quantity *</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="any"
+                  value={stockInForm.quantity}
+                  onChange={(e) => setStockInForm(f => ({ ...f, quantity: e.target.value }))}
+                  className="input-field font-mono text-center text-lg"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="input-label">Unit Cost (this batch)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={stockInForm.unitCostAtReceipt}
+                  onChange={(e) => setStockInForm(f => ({ ...f, unitCostAtReceipt: e.target.value }))}
+                  className="input-field font-mono"
+                  placeholder={`Current: ${stockInProduct.costPrice}`}
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Updates product cost if different</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="input-label">Batch Number</label>
+                <input
+                  type="text"
+                  value={stockInForm.batchNumber}
+                  onChange={(e) => setStockInForm(f => ({ ...f, batchNumber: e.target.value }))}
+                  className="input-field font-mono"
+                  placeholder="e.g. B-23145"
+                />
+              </div>
+              <div>
+                <label className="input-label">Expiry Date</label>
+                <input
+                  type="date"
+                  value={stockInForm.expiryDate}
+                  onChange={(e) => setStockInForm(f => ({ ...f, expiryDate: e.target.value }))}
+                  className="input-field"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="input-label">Notes</label>
+              <textarea
+                value={stockInForm.notes}
+                onChange={(e) => setStockInForm(f => ({ ...f, notes: e.target.value }))}
+                className="input-field"
+                rows={2}
+                placeholder="e.g. Supplier invoice #4521"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+              <button type="button" onClick={() => setStockInProduct(null)} className="btn-secondary">Cancel</button>
+              <button type="submit" disabled={stockInSaving} className="btn-success">
+                {stockInSaving
+                  ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  : <><HiOutlinePlusCircle className="w-5 h-5" /> Add Stock</>}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }
