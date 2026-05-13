@@ -10,8 +10,6 @@ export default function PriceLookup() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [allProducts, setAllProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [selectedCat, setSelectedCat] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const searchRef = useRef(null);
@@ -25,21 +23,12 @@ export default function PriceLookup() {
     try {
       const res = await productAPI.getAll({ limit: 500, status: 'active' });
       setAllProducts(res.data.data);
-      const cats = {};
-      res.data.data.forEach(p => {
-        if (p.category?.name) cats[p.category._id] = p.category.name;
-      });
-      setCategories(Object.entries(cats).map(([id, name]) => ({ id, name })));
     } catch {}
     finally { setLoading(false); }
   };
 
   useEffect(() => {
     let filtered = allProducts;
-
-    if (selectedCat) {
-      filtered = filtered.filter(p => p.category?._id === selectedCat);
-    }
 
     if (query.length > 0) {
       const q = query.toLowerCase();
@@ -52,7 +41,7 @@ export default function PriceLookup() {
     }
 
     setResults(filtered);
-  }, [query, selectedCat, allProducts]);
+  }, [query, allProducts]);
 
   const margin = (p) => p.costPrice > 0 ? ((p.salePrice - p.costPrice) / p.costPrice * 100) : 0;
 
@@ -92,28 +81,16 @@ export default function PriceLookup() {
         </div>
       </div>
 
-      {/* Category Filter */}
-      <div className="flex gap-2 flex-wrap justify-center">
-        <button onClick={() => setSelectedCat('')}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-            !selectedCat ? 'bg-brand-500 text-white shadow-sm' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:border-brand-300'
-          }`}>
+      {/* Results Count — All Items pill keeps the "you're seeing everything" cue
+          without the category chip soup the screen used to drown in. */}
+      <div className="flex flex-col items-center gap-2">
+        <span className="px-4 py-1.5 rounded-full bg-brand-500 text-white text-sm font-medium shadow-sm">
           All Items ({allProducts.length})
-        </button>
-        {categories.map(c => (
-          <button key={c.id} onClick={() => setSelectedCat(c.id)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              selectedCat === c.id ? 'bg-brand-500 text-white shadow-sm' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:border-brand-300'
-            }`}>
-            {c.name}
-          </button>
-        ))}
+        </span>
+        <p className="text-sm text-slate-400">
+          {results.length} product{results.length !== 1 ? 's' : ''} mil gaye
+        </p>
       </div>
-
-      {/* Results Count */}
-      <p className="text-sm text-slate-400 text-center">
-        {results.length} product{results.length !== 1 ? 's' : ''} mil gaye
-      </p>
 
       {/* Results Grid */}
       {loading ? (
